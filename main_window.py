@@ -1,125 +1,191 @@
+import os
+
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QMainWindow, QLabel, QVBoxLayout, QPushButton, QAction, QColorDialog, \
-    QFileDialog, QSpinBox, QFontDialog
+from PyQt5.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QAction, QActionGroup,
+    QColorDialog, QFileDialog, QSpinBox, QToolBar,
+    QToolButton, QMenu
+)
 
 from canvas import Canvas
 from helpers import QInputDialogWithInt, QInputDialogWithFloat
 from global_variables import *
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
         self.setWindowTitle("Mini Image Editor (PyQt5)")
-        self.setGeometry(80, 80, CANVAS_W+250, CANVAS_H+40)
+        self.setGeometry(80, 80, CANVAS_W + 40, CANVAS_H + 80)
+
         self.canvas = Canvas(CANVAS_W, CANVAS_H)
         self.init_ui()
 
+    # ------------------------------------------------------------------
+
     def init_ui(self):
         central = QWidget()
-        main_h = QHBoxLayout()
-        main_h.addWidget(self.canvas)
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)
+        central.setLayout(layout)
+        self.setCentralWidget(central)
 
-        # right panel
-        panel = QVBoxLayout()
-        panel.setAlignment(Qt.AlignTop)
+        self.create_toolbar()
 
-        # tools
-        tools_label = QLabel("Tools:")
-        panel.addWidget(tools_label)
+    # ------------------------------------------------------------------
 
-        tools = ['brush', 'airbrush', 'eraser', 'line', 'rect', 'ellipse', 'bucket', 'text', 'text_select']
-        for t in tools:
-            b = QPushButton(t.capitalize())
-            b.setCheckable(True)
-            b.clicked.connect(lambda _, tt=t: self.select_tool(tt))
-            panel.addWidget(b)
-            if t == 'brush':
-                b.setChecked(True)
-        self.tool_buttons = panel
+    def create_toolbar(self):
+        tb = QToolBar("Main Toolbar")
+        tb.setMovable(False)
+        self.addToolBar(tb)
 
-        # color & size
-        color_btn = QPushButton("Choose Color")
-        color_btn.clicked.connect(self.choose_color)
-        panel.addWidget(color_btn)
+        # ---------- Tool group (exclusive) ----------
+        self.tool_group = QActionGroup(self)
+        self.tool_group.setExclusive(True)
 
-        panel.addWidget(QLabel("Brush size:"))
+        def make_tool(name, label):
+            act = QAction(label, self)
+            act.setCheckable(True)
+            act.triggered.connect(lambda _, t=name: self.select_tool(t))
+            self.tool_group.addAction(act)
+            return act
+
+        # ---------- Draw tools ----------
+        draw_menu = QMenu("Draw", self)
+        draw_menu.addAction(make_tool("brush", "Brush"))
+        draw_menu.addAction(make_tool("airbrush", "Airbrush"))
+        draw_menu.addAction(make_tool("eraser", "Eraser"))
+
+        draw_btn = QToolButton()
+        draw_btn.setText("Draw")
+        draw_btn.setMenu(draw_menu)
+        draw_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        tb.addWidget(draw_btn)
+
+        # ---------- Shape tools ----------
+        shape_menu = QMenu("Shapes", self)
+        shape_menu.addAction(make_tool("line", "Line"))
+        shape_menu.addAction(make_tool("rect", "Rectangle"))
+        shape_menu.addAction(make_tool("ellipse", "Ellipse"))
+
+        shape_btn = QToolButton()
+        shape_btn.setText("Shapes")
+        shape_btn.setMenu(shape_menu)
+        shape_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        tb.addWidget(shape_btn)
+
+        # ---------- Other tools ----------
+        tb.addSeparator()
+        tb.addAction(make_tool("bucket", "Bucket"))
+        tb.addAction(make_tool("text", "Text"))
+        tb.addAction(make_tool("text_select", "Text Select"))
+
+        # ---------- Color & size ----------
+        tb.addSeparator()
+
+        color_act = QAction("Color", self)
+        color_act.triggered.connect(self.choose_color)
+        tb.addAction(color_act)
+
         size_spin = QSpinBox()
         size_spin.setRange(1, 100)
         size_spin.setValue(self.canvas.pen_width)
         size_spin.valueChanged.connect(self.canvas.set_pen_width)
-        panel.addWidget(size_spin)
+        tb.addWidget(size_spin)
 
-        # filters
-        panel.addWidget(QLabel("Filters:"))
-        bright_btn = QPushButton("Brightness -/+")
-        bright_btn.clicked.connect(self.adjust_brightness_dialog)
-        panel.addWidget(bright_btn)
+        # ---------- Filters ----------
+        tb.addSeparator()
 
-        contrast_btn = QPushButton("Contrast")
-        contrast_btn.clicked.connect(self.adjust_contrast_dialog)
-        panel.addWidget(contrast_btn)
+        filter_menu = QMenu("Filters", self)
+        filter_menu.addAction("Brightness +/-", self.adjust_brightness_dialog)
+        filter_menu.addAction("Contrast", self.adjust_contrast_dialog)
+        filter_menu.addAction("Blur", lambda: self.canvas.apply_blur(3))
+        filter_menu.addAction("Sharpen", self.canvas.apply_sharpen)
 
-        blur_btn = QPushButton("Blur (box)")
-        blur_btn.clicked.connect(lambda: self.canvas.apply_blur(3))
-        panel.addWidget(blur_btn)
+        filter_btn = QToolButton()
+        filter_btn.setText("Filters")
+        filter_btn.setMenu(filter_menu)
+        filter_btn.setPopupMode(QToolButton.InstantPopup)
+        tb.addWidget(filter_btn)
 
-        sharpen_btn = QPushButton("Sharpen")
-        sharpen_btn.clicked.connect(self.canvas.apply_sharpen)
-        panel.addWidget(sharpen_btn)
+        # ---------- Undo / Redo ----------
+        tb.addSeparator()
+        tb.addAction(QAction("Undo", self, triggered=self.canvas.undo))
+        tb.addAction(QAction("Redo", self, triggered=self.canvas.redo))
 
-        # undo/redo
-        undo_btn = QPushButton("Undo")
-        undo_btn.clicked.connect(self.canvas.undo)
-        panel.addWidget(undo_btn)
-        redo_btn = QPushButton("Redo")
-        redo_btn.clicked.connect(self.canvas.redo)
-        panel.addWidget(redo_btn)
+        # ---------- Load / Save ----------
+        tb.addSeparator()
+        tb.addAction(QAction("Load", self, triggered=self.load_image))
+        tb.addAction(QAction("Save", self, triggered=self.save_image))
 
-        # load/save
-        load_btn = QPushButton("Load")
-        load_btn.clicked.connect(self.load_image)
-        panel.addWidget(load_btn)
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(self.save_image)
-        panel.addWidget(save_btn)
+        # ---------- Default tool ----------
+        for act in self.tool_group.actions():
+            if act.text() == "Brush":
+                act.setChecked(True)
+                self.select_tool("brush")
+                break
 
-        main_h.addLayout(panel)
-        central.setLayout(main_h)
-        self.setCentralWidget(central)
-
-        # toolbar quick tool selection (sync with side buttons)
-        tb = self.addToolBar("Tools")
-        for t in ['Brush','Airbrush','Eraser','Line','Rect','Ellipse','Bucket']:
-            a = QAction(t, self)
-            a.triggered.connect(lambda checked, tt=t.lower(): self.select_tool(tt))
-            tb.addAction(a)
+    # ------------------------------------------------------------------
 
     def select_tool(self, name):
-        # uncheck side tool buttons if present (we used simple layout, so just set tool)
         self.canvas.set_tool(name)
 
+    # ------------------------------------------------------------------
 
     def choose_color(self):
         c = QColorDialog.getColor(self.canvas.pen_color, self, "Select color")
         if c.isValid():
             self.canvas.set_color(c)
 
+    # ------------------------------------------------------------------
+
     def adjust_brightness_dialog(self):
-        val, ok = QInputDialogWithInt.getInt(self, "Brightness", "Delta (-255..255):", 0, -255, 255, 1)
+        val, ok = QInputDialogWithInt.getInt(
+            self, "Brightness", "Delta (-255..255):", 0, -255, 255, 1
+        )
         if ok:
             self.canvas.apply_brightness(val)
 
+    # ------------------------------------------------------------------
+
     def adjust_contrast_dialog(self):
-        val, ok = QInputDialogWithFloat.getFloat(self, "Contrast", "Factor (0.1..3.0):", 1.0, 0.1, 3.0, 2)
+        val, ok = QInputDialogWithFloat.getFloat(
+            self, "Contrast", "Factor (0.1..3.0):", 1.0, 0.1, 3.0, 2
+        )
         if ok:
             self.canvas.apply_contrast(val)
 
+    # ------------------------------------------------------------------
+
     def load_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open image", "", "Images (*.png *.jpg *.bmp *.gif)")
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open image", "", "Images (*.png *.jpg *.bmp *.gif)"
+        )
         if path:
             self.canvas.load_image(path)
 
+    # ------------------------------------------------------------------
+
     def save_image(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save image", "", "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;BMP Image (*.bmp)")
-        if path:
-            self.canvas.save_image(path)
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Save image",
+            "",
+            "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;BMP Image (*.bmp)"
+        )
+
+        if not path:
+            return
+
+        suffix = os.path.splitext(path)[1]
+
+        if not suffix:
+            if "PNG" in selected_filter:
+                path += ".png"
+            elif "JPEG" in selected_filter:
+                path += ".jpg"
+            elif "BMP" in selected_filter:
+                path += ".bmp"
+
+        self.canvas.save_image(path)

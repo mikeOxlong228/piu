@@ -4,7 +4,7 @@ from collections import deque
 
 from PyQt5.QtCore import QPoint, Qt, QRect, QSize
 from PyQt5.QtGui import QMouseEvent, QPainter, QPen, QPixmap, QFontMetrics
-from PyQt5.QtWidgets import QWidget, QMessageBox, QInputDialog, QColorDialog, QFontDialog
+from PyQt5.QtWidgets import QWidget, QMessageBox, QInputDialog, QColorDialog, QFontDialog, QSizePolicy
 
 from functions import *
 from global_variables import *
@@ -14,7 +14,8 @@ from text_item import TextItem
 class Canvas(QWidget):
     def __init__(self, w=CANVAS_W, h=CANVAS_H):
         super().__init__()
-        self.setFixedSize(w, h)
+        self.setMinimumSize(w, h)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.image = QImage(w, h, QImage.Format_ARGB32)
         self.image.fill(QColor('white'))
         self.temp = QImage()
@@ -134,6 +135,21 @@ class Canvas(QWidget):
             self.draw_shape_final(self.start_point, self.end_point)
         self.drawing = False
         self.update()
+
+    def resizeEvent(self, event):
+        new_image = QImage(
+            self.width(),
+            self.height(),
+            QImage.Format_ARGB32
+        )
+        new_image.fill(QColor('white'))
+
+        painter = QPainter(new_image)
+        painter.drawImage(0, 0, self.image)
+        painter.end()
+
+        self.image = new_image
+        super().resizeEvent(event)
 
     # ----- PAINT -----
     def paintEvent(self, ev):
