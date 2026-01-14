@@ -1,10 +1,8 @@
 import os
-
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QAction, QActionGroup,
     QColorDialog, QFileDialog, QSpinBox, QToolBar,
-    QToolButton, QMenu
+    QToolButton, QMenu, QScrollArea, QInputDialog
 )
 
 from canvas import Canvas
@@ -19,7 +17,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Mini Image Editor (PyQt5)")
         self.setGeometry(80, 80, CANVAS_W + 40, CANVAS_H + 80)
 
-        self.canvas = Canvas(CANVAS_W, CANVAS_H)
+        self.canvas = Canvas()
         self.init_ui()
 
     # ------------------------------------------------------------------
@@ -27,9 +25,19 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         central = QWidget()
         layout = QVBoxLayout()
-        layout.addWidget(self.canvas)
+
+        # Wrap canvas in a scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self.canvas)
+        layout.addWidget(scroll)
+
         central.setLayout(layout)
         self.setCentralWidget(central)
+
+        # Show dialog to adjust canvas size
+        self.showMaximized()  # maximize window first
+        self.ask_canvas_size()
 
         self.create_toolbar()
 
@@ -60,7 +68,7 @@ class MainWindow(QMainWindow):
         draw_btn = QToolButton()
         draw_btn.setText("Draw")
         draw_btn.setMenu(draw_menu)
-        draw_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        draw_btn.setPopupMode(QToolButton.InstantPopup)
         tb.addWidget(draw_btn)
 
         # ---------- Shape tools ----------
@@ -72,11 +80,12 @@ class MainWindow(QMainWindow):
         shape_btn = QToolButton()
         shape_btn.setText("Shapes")
         shape_btn.setMenu(shape_menu)
-        shape_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        shape_btn.setPopupMode(QToolButton.InstantPopup)
         tb.addWidget(shape_btn)
 
         # ---------- Other tools ----------
         tb.addSeparator()
+
         tb.addAction(make_tool("bucket", "Bucket"))
         tb.addAction(make_tool("text", "Text"))
         tb.addAction(make_tool("text_select", "Text Select"))
@@ -111,13 +120,26 @@ class MainWindow(QMainWindow):
 
         # ---------- Undo / Redo ----------
         tb.addSeparator()
+
         tb.addAction(QAction("Undo", self, triggered=self.canvas.undo))
         tb.addAction(QAction("Redo", self, triggered=self.canvas.redo))
 
         # ---------- Load / Save ----------
         tb.addSeparator()
+
         tb.addAction(QAction("Load", self, triggered=self.load_image))
         tb.addAction(QAction("Save", self, triggered=self.save_image))
+
+        # ---------- Settings: Window Size ----------
+        tb.addSeparator()
+
+        window_size_btn = QToolButton()
+        window_size_btn.setText("Settings")
+        window_size_menu = QMenu("Settings", self)
+        window_size_menu.addAction("Window Size", self.ask_canvas_size)
+        window_size_btn.setMenu(window_size_menu)
+        window_size_btn.setPopupMode(QToolButton.InstantPopup)
+        tb.addWidget(window_size_btn)
 
         # ---------- Default tool ----------
         for act in self.tool_group.actions():
@@ -142,8 +164,7 @@ class MainWindow(QMainWindow):
 
     def adjust_brightness_dialog(self):
         val, ok = QInputDialogWithInt.getInt(
-            self, "Brightness", "Delta (-255..255):", 0, -255, 255, 1
-        )
+            self, "Brightness", "Delta (-255..255):", 0, -255, 255, 1)
         if ok:
             self.canvas.apply_brightness(val)
 
@@ -151,8 +172,7 @@ class MainWindow(QMainWindow):
 
     def adjust_contrast_dialog(self):
         val, ok = QInputDialogWithFloat.getFloat(
-            self, "Contrast", "Factor (0.1..3.0):", 1.0, 0.1, 3.0, 2
-        )
+            self, "Contrast", "Factor (0.1..3.0):", 1.0, 0.1, 3.0, 2)
         if ok:
             self.canvas.apply_contrast(val)
 
@@ -160,21 +180,15 @@ class MainWindow(QMainWindow):
 
     def load_image(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open image", "", "Images (*.png *.jpg *.bmp *.gif)"
-        )
+            self, "Open image", "", "Images (*.png *.jpg *.bmp *.gif)")
         if path:
             self.canvas.load_image(path)
 
     # ------------------------------------------------------------------
 
     def save_image(self):
-        path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            "Save image",
-            "",
-            "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;BMP Image (*.bmp)"
-        )
-
+        path, selected_filter = QFileDialog.getSaveFileName(self,"Save image","",
+            "PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;BMP Image (*.bmp)")
         if not path:
             return
 
@@ -189,3 +203,24 @@ class MainWindow(QMainWindow):
                 path += ".bmp"
 
         self.canvas.save_image(path)
+
+    # -------------- Other --------------
+
+    def ask_canvas_size(self):
+        # Get current canvas size
+        current_w = self.canvas.width()
+        current_h = self.canvas.height()
+
+        # Ask for new width
+        w, ok1 = QInputDialog.getInt(
+            self, "Canvas Width", "Enter canvas width:", current_w, 1, 10000)
+        if not ok1:
+            return
+
+        # Ask for new height
+        h, ok2 = QInputDialog.getInt(
+            self, "Canvas Height", "Enter canvas height:", current_h, 1, 10000)
+        if not ok2:
+            return
+
+        self.canvas.set_canvas_size(w, h)

@@ -19,6 +19,7 @@ class QInputDialogWithInt:
         res = d.exec_()
         return spin.value(), res == QDialog.Accepted
 
+
 class QInputDialogWithFloat:
     @staticmethod
     def getFloat(parent, title, label, value, minv, maxv, decimals):
@@ -36,6 +37,7 @@ class QInputDialogWithFloat:
         buttons.rejected.connect(d.reject)
         res = d.exec_()
         return spin.value(), res == QDialog.Accepted
+
 
 # Aliases used above
 QInputDialogWithFloat = QInputDialogWithFloat

@@ -1,0 +1,44 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# PyCharm / IntelliJ project files
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Images / photos
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.gif
+*.tiff
+*.ico
+
+# Backup files
+*.bak
+*.swp
+*.tmp
+*~
+
+# Logs
+*.log
+
+# Generated files by Python packages
+*.egg-info/
+dist/
+build/
